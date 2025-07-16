@@ -1,13 +1,18 @@
 import { blink } from '../blink/client'
 import type { Ticket, TicketMessage } from '../types/database'
+import { DatabaseSetup } from './databaseSetup'
 
 export class TicketService {
-  static async createTicket(ticketData: Omit<Ticket, 'id' | 'created_at' | 'updated_at' | 'message_count'>) {
-    const user = await blink.auth.me()
+  static async createTicket(ticketData: Omit<Ticket, 'id' | 'created_at' | 'updated_at' | 'message_count'>, userId: string) {
+    // Ensure database is initialized
+    await DatabaseSetup.initializeTables()
+    
+    const ticketId = 'T-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5)
     
     const ticket = await blink.db.tickets.create({
+      id: ticketId,
       ...ticketData,
-      user_id: user.id,
+      user_id: userId,
       message_count: 0,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -16,10 +21,11 @@ export class TicketService {
     return ticket
   }
 
-  static async getTickets(filters?: { status?: string; priority?: string; search?: string }) {
-    const user = await blink.auth.me()
+  static async getTickets(userId: string, filters?: { status?: string; priority?: string; search?: string }) {
+    // Ensure database is initialized
+    await DatabaseSetup.initializeTables()
     
-    let whereClause: any = { user_id: user.id }
+    let whereClause: any = { user_id: userId }
     
     if (filters?.status && filters.status !== 'all') {
       whereClause.status = filters.status
@@ -54,7 +60,9 @@ export class TicketService {
     }).then(tickets => tickets[0] || null)
   }
 
-  static async updateTicket(id: string, updates: Partial<Ticket>) {
+  static async updateTicket(id: string, userId: string, updates: Partial<Ticket>) {
+    await DatabaseSetup.initializeTables()
+    
     return await blink.db.tickets.update(id, {
       ...updates,
       updated_at: new Date().toISOString()
@@ -97,10 +105,11 @@ export class TicketService {
     })
   }
 
-  static async getStats() {
-    const user = await blink.auth.me()
+  static async getStats(userId: string) {
+    await DatabaseSetup.initializeTables()
+    
     const tickets = await blink.db.tickets.list({
-      where: { user_id: user.id }
+      where: { user_id: userId }
     })
     
     const openTickets = tickets.filter(t => t.status === 'open').length
@@ -117,5 +126,9 @@ export class TicketService {
       resolvedToday,
       totalTickets: tickets.length
     }
+  }
+
+  static async seedSampleData(userId: string) {
+    return await DatabaseSetup.seedSampleData(userId)
   }
 }

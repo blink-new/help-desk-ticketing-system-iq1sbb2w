@@ -21,7 +21,7 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu'
 import { CreateTicketDialog } from './CreateTicketDialog'
-import { TicketServiceLocal } from '../../services/ticketServiceLocal'
+import { TicketService } from '../../services/ticketService'
 import { useAuth } from '../../hooks/useAuth'
 import type { Ticket } from '../../types/database'
 import { toast } from '../ui/use-toast'
@@ -39,7 +39,7 @@ export function TicketList() {
     
     setLoading(true)
     try {
-      const ticketsData = await TicketServiceLocal.getTickets(user.id, {
+      const ticketsData = await TicketService.getTickets(user.id, {
         status: statusFilter,
         priority: priorityFilter,
         search: searchQuery
@@ -59,7 +59,7 @@ export function TicketList() {
   useEffect(() => {
     if (user) {
       // Seed sample data on first load
-      TicketServiceLocal.seedSampleData(user.id)
+      TicketService.seedSampleData(user.id)
       loadTickets()
     }
   }, [user, statusFilter, priorityFilter, searchQuery])
@@ -72,7 +72,7 @@ export function TicketList() {
     if (!user) return
     
     try {
-      await TicketServiceLocal.updateTicket(ticketId, user.id, { status: newStatus as any })
+      await TicketService.updateTicket(ticketId, user.id, { status: newStatus as any })
       toast({
         title: 'Ticket updated',
         description: `Ticket status changed to ${newStatus.replace('_', ' ')}.`

@@ -12,7 +12,7 @@ import {
   MessageSquare,
   BookOpen
 } from 'lucide-react'
-import { TicketServiceLocal } from '../../services/ticketServiceLocal'
+import { TicketService } from '../../services/ticketService'
 import { useAuth } from '../../hooks/useAuth'
 import type { Ticket as TicketType } from '../../types/database'
 
@@ -31,14 +31,14 @@ export function Dashboard() {
 
     const loadData = async () => {
       // Seed sample data on first load
-      TicketServiceLocal.seedSampleData(user.id)
+      await TicketService.seedSampleData(user.id)
       
       // Load stats
-      const statsData = await TicketServiceLocal.getStats(user.id)
+      const statsData = await TicketService.getStats(user.id)
       setStats(statsData)
       
       // Load recent tickets
-      const tickets = await TicketServiceLocal.getTickets(user.id)
+      const tickets = await TicketService.getTickets(user.id)
       setRecentTickets(tickets.slice(0, 3))
     }
 

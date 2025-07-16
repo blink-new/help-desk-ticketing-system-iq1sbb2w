@@ -14,7 +14,7 @@ import {
   DialogTrigger,
 } from '../ui/dialog'
 import { Plus, Loader2 } from 'lucide-react'
-import { TicketServiceLocal } from '../../services/ticketServiceLocal'
+import { TicketService } from '../../services/ticketService'
 import { useAuth } from '../../hooks/useAuth'
 import { toast } from '../ui/use-toast'
 
@@ -41,7 +41,7 @@ export function CreateTicketDialog({ onTicketCreated }: CreateTicketDialogProps)
 
     setLoading(true)
     try {
-      await TicketServiceLocal.createTicket({
+      await TicketService.createTicket({
         ...formData,
         status: 'open'
       }, user.id)
