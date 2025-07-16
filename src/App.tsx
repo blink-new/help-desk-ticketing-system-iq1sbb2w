@@ -10,6 +10,7 @@ import { NotificationCenter } from './components/notifications/NotificationCente
 import { Button } from './components/ui/button'
 import { Card, CardContent } from './components/ui/card'
 import { Loader2, LogIn } from 'lucide-react'
+import { Toaster } from './components/ui/toaster'
 
 function App() {
   const { user, isLoading, isAuthenticated, login } = useAuth()
@@ -101,6 +102,7 @@ function App() {
           {renderContent()}
         </main>
       </div>
+      <Toaster />
     </div>
   )
 }

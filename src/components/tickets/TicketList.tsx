@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -20,66 +20,72 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu'
+import { CreateTicketDialog } from './CreateTicketDialog'
+import { TicketServiceLocal } from '../../services/ticketServiceLocal'
+import { useAuth } from '../../hooks/useAuth'
+import type { Ticket } from '../../types/database'
+import { toast } from '../ui/use-toast'
 
 export function TicketList() {
+  const { user } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
+  const [tickets, setTickets] = useState<Ticket[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const tickets = [
-    {
-      id: 'T-001',
-      title: 'Login issues with mobile app',
-      description: 'Users are experiencing difficulties logging into the mobile application...',
-      customer: { name: 'John Doe', email: 'john@example.com', avatar: '' },
-      assignedAgent: { name: 'Sarah Wilson', email: 'sarah@company.com', avatar: '' },
-      priority: 'high',
-      status: 'open',
-      category: 'Technical',
-      createdAt: '2024-01-15T10:30:00Z',
-      updatedAt: '2024-01-15T14:20:00Z',
-      messageCount: 3
-    },
-    {
-      id: 'T-002',
-      title: 'Payment processing error',
-      description: 'Customer unable to complete payment for subscription renewal...',
-      customer: { name: 'Jane Smith', email: 'jane@example.com', avatar: '' },
-      assignedAgent: { name: 'Mike Johnson', email: 'mike@company.com', avatar: '' },
-      priority: 'urgent',
-      status: 'in_progress',
-      category: 'Billing',
-      createdAt: '2024-01-15T08:15:00Z',
-      updatedAt: '2024-01-15T15:45:00Z',
-      messageCount: 7
-    },
-    {
-      id: 'T-003',
-      title: 'Feature request: Dark mode',
-      description: 'Multiple users have requested a dark mode option for the dashboard...',
-      customer: { name: 'Alex Chen', email: 'alex@example.com', avatar: '' },
-      assignedAgent: null,
-      priority: 'low',
-      status: 'open',
-      category: 'Feature Request',
-      createdAt: '2024-01-14T16:20:00Z',
-      updatedAt: '2024-01-14T16:20:00Z',
-      messageCount: 1
-    },
-    {
-      id: 'T-004',
-      title: 'Data export functionality not working',
-      description: 'The CSV export feature is returning empty files...',
-      customer: { name: 'Emily Davis', email: 'emily@example.com', avatar: '' },
-      assignedAgent: { name: 'Sarah Wilson', email: 'sarah@company.com', avatar: '' },
-      priority: 'medium',
-      status: 'resolved',
-      category: 'Technical',
-      createdAt: '2024-01-13T11:00:00Z',
-      updatedAt: '2024-01-15T09:30:00Z',
-      messageCount: 5
+  const loadTickets = async () => {
+    if (!user) return
+    
+    setLoading(true)
+    try {
+      const ticketsData = await TicketServiceLocal.getTickets(user.id, {
+        status: statusFilter,
+        priority: priorityFilter,
+        search: searchQuery
+      })
+      setTickets(ticketsData)
+    } catch (error) {
+      toast({
+        title: 'Error loading tickets',
+        description: 'Please try again later.',
+        variant: 'destructive'
+      })
+    } finally {
+      setLoading(false)
     }
-  ]
+  }
+
+  useEffect(() => {
+    if (user) {
+      // Seed sample data on first load
+      TicketServiceLocal.seedSampleData(user.id)
+      loadTickets()
+    }
+  }, [user, statusFilter, priorityFilter, searchQuery])
+
+  const handleTicketCreated = () => {
+    loadTickets()
+  }
+
+  const handleStatusChange = async (ticketId: string, newStatus: string) => {
+    if (!user) return
+    
+    try {
+      await TicketServiceLocal.updateTicket(ticketId, user.id, { status: newStatus as any })
+      toast({
+        title: 'Ticket updated',
+        description: `Ticket status changed to ${newStatus.replace('_', ' ')}.`
+      })
+      loadTickets()
+    } catch (error) {
+      toast({
+        title: 'Error updating ticket',
+        description: 'Please try again later.',
+        variant: 'destructive'
+      })
+    }
+  }
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -106,16 +112,6 @@ export function TicketList() {
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   }
 
-  const filteredTickets = tickets.filter(ticket => {
-    const matchesSearch = ticket.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         ticket.customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         ticket.id.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || ticket.status === statusFilter
-    const matchesPriority = priorityFilter === 'all' || ticket.priority === priorityFilter
-    
-    return matchesSearch && matchesStatus && matchesPriority
-  })
-
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -123,7 +119,7 @@ export function TicketList() {
           <h1 className="text-2xl font-bold text-gray-900">Tickets</h1>
           <p className="text-gray-600">Manage and track customer support requests</p>
         </div>
-        <Button>Create Ticket</Button>
+        <CreateTicketDialog onTicketCreated={handleTicketCreated} />
       </div>
 
       {/* Filters */}
@@ -174,7 +170,16 @@ export function TicketList() {
 
       {/* Tickets List */}
       <div className="space-y-4">
-        {filteredTickets.map((ticket) => (
+        {loading ? (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-gray-500">Loading tickets...</p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : tickets.map((ticket) => (
           <Card key={ticket.id} className="hover:shadow-md transition-shadow cursor-pointer">
             <CardContent className="pt-6">
               <div className="flex items-start justify-between">
@@ -203,34 +208,33 @@ export function TicketList() {
                   <div className="flex items-center space-x-6 text-sm text-gray-500">
                     <div className="flex items-center space-x-2">
                       <User className="h-4 w-4" />
-                      <span>{ticket.customer.name}</span>
+                      <span>{ticket.customer_name}</span>
                     </div>
                     
-                    {ticket.assignedAgent && (
+                    {ticket.assigned_agent_name && (
                       <div className="flex items-center space-x-2">
                         <Avatar className="h-5 w-5">
-                          <AvatarImage src={ticket.assignedAgent.avatar} />
                           <AvatarFallback className="text-xs">
-                            {ticket.assignedAgent.name.charAt(0)}
+                            {ticket.assigned_agent_name.charAt(0)}
                           </AvatarFallback>
                         </Avatar>
-                        <span>{ticket.assignedAgent.name}</span>
+                        <span>{ticket.assigned_agent_name}</span>
                       </div>
                     )}
                     
                     <div className="flex items-center space-x-2">
                       <Calendar className="h-4 w-4" />
-                      <span>{formatDate(ticket.createdAt)}</span>
+                      <span>{formatDate(ticket.created_at)}</span>
                     </div>
                     
                     <div className="flex items-center space-x-2">
                       <MessageSquare className="h-4 w-4" />
-                      <span>{ticket.messageCount} messages</span>
+                      <span>{ticket.message_count} messages</span>
                     </div>
                     
                     <div className="flex items-center space-x-2">
                       <Clock className="h-4 w-4" />
-                      <span>Updated {formatDate(ticket.updatedAt)}</span>
+                      <span>Updated {formatDate(ticket.updated_at)}</span>
                     </div>
                   </div>
                 </div>
@@ -245,7 +249,15 @@ export function TicketList() {
                     <DropdownMenuItem>View Details</DropdownMenuItem>
                     <DropdownMenuItem>Assign Agent</DropdownMenuItem>
                     <DropdownMenuItem>Change Priority</DropdownMenuItem>
-                    <DropdownMenuItem>Close Ticket</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleStatusChange(ticket.id, 'in_progress')}>
+                      Mark In Progress
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleStatusChange(ticket.id, 'resolved')}>
+                      Mark Resolved
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleStatusChange(ticket.id, 'closed')}>
+                      Close Ticket
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -254,7 +266,7 @@ export function TicketList() {
         ))}
       </div>
 
-      {filteredTickets.length === 0 && (
+      {!loading && tickets.length === 0 && (
         <Card>
           <CardContent className="pt-6">
             <div className="text-center py-12">

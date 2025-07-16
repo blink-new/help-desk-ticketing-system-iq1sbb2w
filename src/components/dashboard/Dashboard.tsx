@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -11,65 +12,80 @@ import {
   MessageSquare,
   BookOpen
 } from 'lucide-react'
+import { TicketServiceLocal } from '../../services/ticketServiceLocal'
+import { useAuth } from '../../hooks/useAuth'
+import type { Ticket as TicketType } from '../../types/database'
 
 export function Dashboard() {
-  const stats = [
+  const { user } = useAuth()
+  const [stats, setStats] = useState({
+    openTickets: 0,
+    inProgressTickets: 0,
+    resolvedToday: 0,
+    totalTickets: 0
+  })
+  const [recentTickets, setRecentTickets] = useState<TicketType[]>([])
+
+  useEffect(() => {
+    if (!user) return
+
+    const loadData = async () => {
+      // Seed sample data on first load
+      TicketServiceLocal.seedSampleData(user.id)
+      
+      // Load stats
+      const statsData = await TicketServiceLocal.getStats(user.id)
+      setStats(statsData)
+      
+      // Load recent tickets
+      const tickets = await TicketServiceLocal.getTickets(user.id)
+      setRecentTickets(tickets.slice(0, 3))
+    }
+
+    loadData()
+  }, [user])
+
+  const dashboardStats = [
     {
       title: 'Open Tickets',
-      value: '24',
+      value: stats.openTickets.toString(),
       change: '+12%',
       icon: Ticket,
       color: 'text-blue-600'
     },
     {
-      title: 'Avg Response Time',
-      value: '2.4h',
+      title: 'In Progress',
+      value: stats.inProgressTickets.toString(),
       change: '-8%',
       icon: Clock,
-      color: 'text-green-600'
+      color: 'text-yellow-600'
     },
     {
       title: 'Resolved Today',
-      value: '18',
+      value: stats.resolvedToday.toString(),
       change: '+24%',
       icon: CheckCircle,
       color: 'text-green-600'
     },
     {
-      title: 'Customer Satisfaction',
-      value: '94%',
+      title: 'Total Tickets',
+      value: stats.totalTickets.toString(),
       change: '+2%',
       icon: TrendingUp,
       color: 'text-purple-600'
     }
   ]
 
-  const recentTickets = [
-    {
-      id: 'T-001',
-      title: 'Login issues with mobile app',
-      customer: 'John Doe',
-      priority: 'high',
-      status: 'open',
-      time: '2 hours ago'
-    },
-    {
-      id: 'T-002',
-      title: 'Payment processing error',
-      customer: 'Jane Smith',
-      priority: 'urgent',
-      status: 'in_progress',
-      time: '4 hours ago'
-    },
-    {
-      id: 'T-003',
-      title: 'Feature request: Dark mode',
-      customer: 'Mike Johnson',
-      priority: 'low',
-      status: 'open',
-      time: '1 day ago'
-    }
-  ]
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60))
+    
+    if (diffInHours < 1) return 'Just now'
+    if (diffInHours < 24) return `${diffInHours} hours ago`
+    const diffInDays = Math.floor(diffInHours / 24)
+    return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`
+  }
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -100,7 +116,7 @@ export function Dashboard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => {
+        {dashboardStats.map((stat, index) => {
           const Icon = stat.icon
           return (
             <Card key={index}>
@@ -140,12 +156,12 @@ export function Dashboard() {
                         {ticket.priority}
                       </Badge>
                       <Badge className={getStatusColor(ticket.status)}>
-                        {ticket.status}
+                        {ticket.status.replace('_', ' ')}
                       </Badge>
                     </div>
                     <p className="text-sm text-gray-900 mb-1">{ticket.title}</p>
                     <p className="text-xs text-gray-500">
-                      {ticket.customer} • {ticket.time}
+                      {ticket.customer_name} • {formatTimeAgo(ticket.created_at)}
                     </p>
                   </div>
                   <Button variant="ghost" size="sm">
